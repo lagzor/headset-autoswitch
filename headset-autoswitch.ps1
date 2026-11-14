@@ -198,10 +198,10 @@ if (-not ('HeadsetAutoswitch.Audio' -as [type])) { Add-Type -TypeDefinition $aud
 # (01 = off, 02 = charging by cable, 08 = on), byte 6 the battery (0-8).
 # Protocol as documented by the HeadsetControl project.
 #
-# Fractal Scape: while the headset is on, the dongle (36bc:0001, the interface
-# with usage page ff00) sends report 02 11 21 00 xx about every two seconds:
-# xx = 01 is on, 00 is off or on the stand. Nothing is sent while it is off,
-# so no reports also counts as off.
+# Fractal Scape: the dongle (36bc:0001, the interface with usage page ff00) is
+# asked for its state every two seconds (report 02 11 21, the same question
+# Fractal's Adjust page asks) and answers 02 11 21 00 xx: xx = 01 is on, 00 is
+# off or on the stand. No answer for a while also counts as off.
 
 $hidCode = @'
 using System;
@@ -381,9 +381,27 @@ namespace HeadsetAutoswitch {
         if (h == null || h.IsInvalid) { Error = "Could not open the Fractal Scape dongle (" + Marshal.GetLastWin32Error() + ")"; return false; }
         var fs = new FileStream(h, FileAccess.Read, 1, true);
         int length = target.InputLength;
+        int outLength = Math.Max(3, target.OutputLength);
+        // A second handle for asking: the dongle only reports its state when asked.
+        var wh = Hid.Open(target.Path, true);
+        FileStream ws = (wh == null || wh.IsInvalid) ? null : new FileStream(wh, FileAccess.Write, 1, true);
+        if (ws == null) Error = "Could not open the Fractal Scape dongle for writing (" + Marshal.GetLastWin32Error() + ")";
         running = true;
-        Error = null;
+        if (ws != null) Error = null;
         started = DateTime.UtcNow.Ticks;
+        if (ws != null) Task.Run(async () => {
+          var ask = new byte[outLength];
+          ask[0] = 0x02; ask[1] = 0x11; ask[2] = 0x21;   // report 2: dongle, get state
+          try {
+            while (running) {
+              try { await ws.WriteAsync(ask, 0, ask.Length); }
+              catch (Exception ex) { Error = "Could not ask the dongle: " + ex.Message; }
+              await Task.Delay(2000);
+            }
+          } finally {
+            try { ws.Dispose(); } catch { }
+          }
+        });
         Task.Run(async () => {
           try {
             while (true) {

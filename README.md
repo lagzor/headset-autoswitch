@@ -12,7 +12,7 @@ Many wireless headsets use a USB dongle or base station that stays plugged in. W
 
 | Headset | Method | How it is detected |
 | --- | --- | --- |
-| Fractal Design Scape | `fractal` | The dongle sends a status report every couple of seconds while the headset is on. Off, or on the stand, means no reports or a report saying it is off. |
+| Fractal Design Scape | `fractal` | The dongle is asked for the headset's state every couple of seconds. Off, or on the stand, means it answers off (or does not answer). |
 | SteelSeries Arctis Nova Pro Wireless | `steelseries` | Asks the base station for the headset status. |
 | Most other USB and Bluetooth headsets | `device` | The headset counts as on while its audio device is active in Windows. Works for headsets whose audio device disappears when they turn off. |
 
